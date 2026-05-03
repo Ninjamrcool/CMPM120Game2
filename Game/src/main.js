@@ -21,7 +21,7 @@ let config = {
     },
     width: 800,
     height: 600,
-    scene: [ArrayBoom]
+    scene: [GameScene]
 }
 
 
