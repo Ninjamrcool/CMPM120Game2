@@ -2,6 +2,9 @@ class GameScene extends Phaser.Scene {
     constructor() {
         super("GameScene");
 
+        // Not in initializeScene so its never reset
+        this.highScore = 0;
+
         this.initializeScene();
     }
 
@@ -530,7 +533,7 @@ class GameScene extends Phaser.Scene {
         sceneData.sprite["heart" + (health + 1)].alpha = 0.1;
 
         if (health < 1 ){
-            sceneData.text.gameOver = this.add.bitmapText(game.config.width/2, game.config.height/2 - 40, "rocketSquare", "Game Over!");
+            sceneData.text.gameOver = this.add.bitmapText(game.config.width/2, game.config.height/2 - 60, "rocketSquare", "Game Over!");
             sceneData.text.gameOver.setDepth(4);
             sceneData.text.gameOver.setOrigin(0.5);
             sceneData.text.gameOver.setScale(1.5);
@@ -540,11 +543,18 @@ class GameScene extends Phaser.Scene {
             if (sceneData.wave > 1){
                 waveText += "s"
             }
-            sceneData.text.gameOverWaves = this.add.bitmapText(game.config.width/2, game.config.height/2, "rocketSquare", "You lasted " + sceneData.wave + waveText);
+            sceneData.text.gameOverWaves = this.add.bitmapText(game.config.width/2, game.config.height/2 - 20, "rocketSquare", "You lasted " + sceneData.wave + waveText);
             sceneData.text.gameOverWaves.setDepth(4);
             sceneData.text.gameOverWaves.setOrigin(0.5);
 
-            sceneData.text.gameOverRestart = this.add.bitmapText(game.config.width/2, game.config.height/2 + 40, "rocketSquare", "- click to restart -");
+            if (sceneData.score > this.highScore){
+                this.highScore = sceneData.score;
+            }
+            sceneData.text.gameOverHighScore = this.add.bitmapText(game.config.width/2, game.config.height/2 + 20, "rocketSquare", "High Score: " + this.highScore);
+            sceneData.text.gameOverHighScore.setDepth(4);
+            sceneData.text.gameOverHighScore.setOrigin(0.5);
+
+            sceneData.text.gameOverRestart = this.add.bitmapText(game.config.width/2, game.config.height/2 + 60, "rocketSquare", "- click to restart -");
             sceneData.text.gameOverRestart.setDepth(4);
             sceneData.text.gameOverRestart.setOrigin(0.5);
 
