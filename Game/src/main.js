@@ -1,3 +1,7 @@
+// Assets:
+// https://kenney.nl/assets/board-game-icons
+// https://kenney.nl/assets/top-down-shooter
+
 // debug with extreme prejudice
 "use strict"
 

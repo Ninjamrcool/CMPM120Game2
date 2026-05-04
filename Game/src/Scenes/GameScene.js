@@ -2,8 +2,12 @@ class GameScene extends Phaser.Scene {
     constructor() {
         super("GameScene");
 
+        this.initializeScene();
+    }
+
+    initializeScene() {
         // sceneData stores all non constant data
-        this.sceneData = {sprite: {}, text: {}, playerSpeed: 0, playerLastFiredTime: 0, lastEnemySpawnTime: 0, score: 0};
+        this.sceneData = {sprite: {}, text: {}, playerSpeed: 0, playerLastFiredTime: 0, playerLastHurtTime: 0, playerHealth: 3, lastEnemySpawnTime: 0, score: 0};
 
         this.sceneData.sprite.bullets = [];   
         this.sceneData.sprite.enemies = [];   
@@ -20,15 +24,21 @@ class GameScene extends Phaser.Scene {
 
         this.bulletSpeed = 700;
 
+        this.shrinkCollisionsFactor = 0.9;
+
         // Waves
         this.enemySpawnInterval = 1;
 
         // Visual
-        this.playerShootAnimationTime = 0.5;
+        this.playerShootDuration = 0.5;
+        this.playerDamageDuration = 0.15;
 
         // Positioning
         this.scoreTextX = 10;    
         this.scoreTextY = 560;   
+
+        this.heartX = 775;    
+        this.heartY = 575;   
 
         this.playerYOffset = 80;
 
@@ -39,7 +49,7 @@ class GameScene extends Phaser.Scene {
         this.roadBoundLeft = 200;    
         this.roadBoundRight = 600;    
 
-
+        this.heartXGap = 40;    
     }
 
     preload() {
@@ -47,9 +57,16 @@ class GameScene extends Phaser.Scene {
         this.load.setPath("./assets/sprites");
 
         this.load.image("playerShoot", "player/gun.png");
+        this.load.image("playerShootHurt", "player/gunHurt.png");
         this.load.image("playerIdle", "player/idle.png");
+        this.load.image("playerIdleHurt", "player/idleHurt.png");
+
         this.load.image("bullet", "bullet.png");
-        this.load.image("zombie", "zombie.png");
+
+        this.load.image("zombieIdle", "enemies/idle.png");
+        this.load.image("zombieHurt", "enemies/hurt.png");
+
+        this.load.image("heart", "UI/heart.png");
 
         // Animation
         this.load.image("whitePuff00", "whitePuff00.png");
@@ -78,6 +95,11 @@ class GameScene extends Phaser.Scene {
         sceneData.sprite.player = this.add.sprite(game.config.width/2, game.config.height - this.playerYOffset, "player");
         sceneData.sprite.player.setScale(1.25);
         sceneData.sprite.player.angle = -90;
+
+        for (let i = 0; i < sceneData.playerHealth; i++) {
+            sceneData.sprite["heart" + (i + 1)] = this.add.sprite(this.heartX - (i * this.heartXGap), this.heartY, "heart");
+            sceneData.sprite["heart" + (i + 1)].setScale(0.35);
+        }
 
         // Create white puff animation
         this.anims.create({
@@ -136,28 +158,28 @@ class GameScene extends Phaser.Scene {
 
         this.removeOffscreenBullets(sceneData);
 
-        this.checkCollisions(sceneData);
+        this.checkCollisions(sceneData, time);
 
         this.moveBullets(sceneData, deltaTime);
 
         this.spawnEnemies(sceneData, time);
 
-        this.updateEnemies(sceneData, time, delta);
+        this.updateEnemies(sceneData, time, deltaTime);
         
-        this.removeOffscreenEnemies(sceneData);
+        this.removeEnemies(sceneData);
     }
 
     // A center-radius AABB collision check
     collides(a, b) {
-        if (Math.abs(a.x - b.x) > (a.displayWidth/2 + b.displayWidth/2)) return false;
-        if (Math.abs(a.y - b.y) > (a.displayHeight/2 + b.displayHeight/2)) return false;
+        if (Math.abs(a.x - b.x) > (a.displayWidth/2 + b.displayWidth/2) * this.shrinkCollisionsFactor) return false;
+        if (Math.abs(a.y - b.y) > (a.displayHeight/2 + b.displayHeight/2) * this.shrinkCollisionsFactor) return false;
         return true;
     }
 
     updateScore() {
         let sceneData = this.sceneData;
         sceneData.text.score.setText("Score " + this.sceneData.score);
-    }
+    } 
 
     updatePlayerPhysics(sceneData, deltaTime) {
         //A and D change speed
@@ -191,26 +213,24 @@ class GameScene extends Phaser.Scene {
             this.sceneData.playerSpeed = 0;
         }
         sceneData.sprite.player.x = Math.min(Math.max(sceneData.sprite.player.x, this.roadBoundLeft), this.roadBoundRight);
-
-        //Change sprite
-        /*
-        if (Math.abs(this.sceneData.playerSpeed) > this.walkAnimationThreshhold){
-            sceneData.sprite.playerIdle.visible = false;
-            sceneData.sprite.playerWalk.visible = true;
-        }
-        else{
-            sceneData.sprite.playerIdle.visible = true;
-            sceneData.sprite.playerWalk.visible = false;
-        }*/
-
     }
 
     updatePlayerSprite(sceneData, time) {
-        if (time/1000 - sceneData.playerLastFiredTime < this.playerShootAnimationTime) {
-            sceneData.sprite.player.setTexture("playerShoot");
+        if (time/1000 - sceneData.playerLastFiredTime < this.playerShootDuration) {
+            if (time/1000 - sceneData.playerLastHurtTime < this.playerDamageDuration){
+                sceneData.sprite.player.setTexture("playerShootHurt");
+            }
+            else{
+                sceneData.sprite.player.setTexture("playerShoot");
+            }
         }
         else{
-            sceneData.sprite.player.setTexture("playerIdle");
+             if (time/1000 - sceneData.playerLastHurtTime < this.playerDamageDuration){
+                sceneData.sprite.player.setTexture("playerIdleHurt");
+            }
+            else{
+                sceneData.sprite.player.setTexture("playerIdle");
+            }
         }
     }
 
@@ -233,16 +253,18 @@ class GameScene extends Phaser.Scene {
         sceneData.sprite.bullets = sceneData.sprite.bullets.filter((bullet) => bullet.y > -(bullet.displayHeight/2));
     }
 
-    removeOffscreenEnemies(sceneData) {
-        sceneData.sprite.enemies = sceneData.sprite.enemies.filter((enemy) => enemy.y < game.config.height + (enemy.displayHeight/2));
+    removeEnemies(sceneData) {
+        sceneData.sprite.enemies = sceneData.sprite.enemies.filter((enemy) => enemy.y < game.config.height + (enemy.displayHeight/2) && enemy.alpha > 0);
     }
 
-    checkCollisions(sceneData) {
+    checkCollisions(sceneData, time) {
         for (let enemy of sceneData.sprite.enemies) {
             for (let bullet of sceneData.sprite.bullets) {
-                if (this.collides(enemy, bullet)) {    
+                if (!enemy.dead && this.collides(enemy, bullet)) {    
+                    enemy.damage(1, time);
+
                     // start animation
-                    this.puff = this.add.sprite(enemy.x, enemy.y, "whitePuff03").setScale(0.25).play("puff");
+                    //this.puff = this.add.sprite(enemy.x, enemy.y, "whitePuff03").setScale(0.25).play("puff");
 
                     // Update score
                     this.sceneData.score += enemy.points;
@@ -253,7 +275,6 @@ class GameScene extends Phaser.Scene {
                     
                     // put y offscreen, will get removed next update
                     bullet.y = -100;
-                    enemy.y = 1000;
 
                     // // Have new hippo appear after end of animation
                     // this.puff.on(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
@@ -262,6 +283,18 @@ class GameScene extends Phaser.Scene {
                     // }, this);
 
                 }
+            }
+        }
+
+
+        for (let enemy of sceneData.sprite.enemies) {
+            if (!enemy.dead && this.collides(enemy, sceneData.sprite.player)) {    
+                enemy.damage(9999, time);
+
+                // Update score
+                this.sceneData.playerHealth -= 1;
+                this.sceneData.playerLastHurtTime = time/1000;
+                this.updateHealth();
             }
         }
     }
@@ -274,7 +307,7 @@ class GameScene extends Phaser.Scene {
 
     spawnEnemies(sceneData, time) {
         if (time/1000 - sceneData.lastEnemySpawnTime > this.enemySpawnInterval) {
-            let temp = new Enemy(this, game.config.width/2, this.enemySpawnY, "zombie", null, 0.1, 25)
+            let temp = new Enemy(this, game.config.width/2, this.enemySpawnY, "zombie", null, 100, 5, 3);
             temp.setScale(1.25);
             temp.angle = 90;
             temp.x = (Math.random() * (this.roadBoundRight - this.roadBoundLeft)) + this.roadBoundLeft;
@@ -289,6 +322,20 @@ class GameScene extends Phaser.Scene {
             enemy.update(time, delta);
         }
     }
+
+    updateHealth() {
+        let sceneData = this.sceneData;
+        let health = this.sceneData.playerHealth;
+
+        if (health < 1 ){
+            this.scene.restart()
+            this.initializeScene();
+            return
+        }
+
+        this.sceneData.sprite["heart" + (health + 1)].alpha = 0.1;
+    } 
+    
 
 }
          
