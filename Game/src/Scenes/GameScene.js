@@ -7,10 +7,11 @@ class GameScene extends Phaser.Scene {
 
     initializeScene() {
         // sceneData stores all non constant data
-        this.sceneData = {sprite: {}, text: {}, playerSpeed: 0, playerLastFiredTime: 0, playerLastHurtTime: 0, playerHealth: 3, lastEnemySpawnTime: 0, score: 0};
+        this.sceneData = {sprite: {}, text: {}, playerSpeed: 0, playerLastFiredTime: 0, playerLastHurtTime: 0, playerHealth: 3, lastEnemySpawnTime: 0, score: 0, rowNumber: 0, crosswalkChance: 0.0};
 
         this.sceneData.sprite.bullets = [];   
         this.sceneData.sprite.enemies = [];   
+        this.sceneData.sprite.tiles = []; //rows   
 
 
         // ----- CONFIG -----
@@ -33,6 +34,12 @@ class GameScene extends Phaser.Scene {
         this.playerShootDuration = 0.5;
         this.playerDamageDuration = 0.15;
 
+        // Tiles
+        this.tileSpeed = 50;
+        this.roadLeftOffset = 4;
+        this.roadRightOffset = 11;
+        this.crosswalkChanceAdded = 0.07;
+
         // Positioning
         this.scoreTextX = 10;    
         this.scoreTextY = 560;   
@@ -46,10 +53,12 @@ class GameScene extends Phaser.Scene {
         
         this.enemySpawnY = -10;
 
-        this.roadBoundLeft = 200;    
-        this.roadBoundRight = 600;    
+        this.roadBoundLeft = 225;    
+        this.roadBoundRight = 575;    
 
         this.heartXGap = 40;    
+
+        this.tileDimensions = 50;
     }
 
     preload() {
@@ -68,11 +77,25 @@ class GameScene extends Phaser.Scene {
 
         this.load.image("heart", "UI/heart.png");
 
-        // Animation
-        this.load.image("whitePuff00", "whitePuff00.png");
-        this.load.image("whitePuff01", "whitePuff01.png");
-        this.load.image("whitePuff02", "whitePuff02.png");
-        this.load.image("whitePuff03", "whitePuff03.png");
+        //Tiles
+        this.load.image("roadLeft", "Tiles/roadLeft.png");
+        this.load.image("roadCrosswalkLeft", "Tiles/roadCrosswalkLeft.png");
+        this.load.image("roadRight", "Tiles/roadRight.png");
+        this.load.image("roadCrosswalkRight", "Tiles/roadCrosswalkRight.png");
+        this.load.image("roadMiddle", "Tiles/roadMiddle.png");
+        this.load.image("roadCrosswalkMiddle", "Tiles/roadCrosswalkMiddle.png");
+
+        this.load.image("roadCrackedMiddle1", "Tiles/roadCrackedMiddle1.png");
+        this.load.image("roadCrackedMiddle2", "Tiles/roadCrackedMiddle2.png");
+        this.load.image("roadCrackedMiddle3", "Tiles/roadCrackedMiddle3.png");
+
+        this.load.image("grass1", "Tiles/grass1.png");
+        this.load.image("grass2", "Tiles/grass2.png");
+        this.load.image("grass3", "Tiles/grass3.png");
+
+        this.load.image("grassDecorator1", "Tiles/grassDecorator1.png");
+        this.load.image("grassDecorator2", "Tiles/grassDecorator2.png");
+        this.load.image("grassDecorator3", "Tiles/grassDecorator3.png");
 
         // Load the Kenny Rocket Square bitmap font
         // This was converted from TrueType format into Phaser bitmap
@@ -99,22 +122,8 @@ class GameScene extends Phaser.Scene {
         for (let i = 0; i < sceneData.playerHealth; i++) {
             sceneData.sprite["heart" + (i + 1)] = this.add.sprite(this.heartX - (i * this.heartXGap), this.heartY, "heart");
             sceneData.sprite["heart" + (i + 1)].setScale(0.35);
+            sceneData.sprite["heart" + (i + 1)].setDepth(3);
         }
-
-        // Create white puff animation
-        this.anims.create({
-            key: "puff",
-            frames: [
-                { key: "whitePuff00" },
-                { key: "whitePuff01" },
-                { key: "whitePuff02" },
-                { key: "whitePuff03" },
-            ],
-            frameRate: 20,    // Note: case sensitive (thank you Ivy!)
-            repeat: 5,
-            hideOnComplete: true
-        });
-
 
         this.impactMetalSound = this.sound.add("impactMetal", {
             volume: 0.5
@@ -131,19 +140,15 @@ class GameScene extends Phaser.Scene {
         this.space = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
 
         // update HTML description
-        document.getElementById('description').innerHTML = '<h2>Array Boom.js</h2><br>A: left // D: right // Space: fire/emit';
+        document.getElementById('description').innerHTML = '<h2>Gallery Shooter</h2><br>A: left // D: right // Space: fire/emit';
 
         // Put score on screen
         sceneData.text.score = this.add.bitmapText(this.scoreTextX, this.scoreTextY, "rocketSquare", "Score " + this.sceneData.score);
+        sceneData.text.score.setDepth(3);
 
-        // // Put title on screen
-        // this.add.text(10, 5, "Hippo Hug!", {
-        //     fontFamily: 'Times, serif',
-        //     fontSize: 24,
-        //     wordWrap: {
-        //         width: 60
-        //     }
-        // });
+        for (let i = 0; i < game.config.height/this.tileDimensions; i++){
+            this.createRow(Math.floor(game.config.height/this.tileDimensions - i) * this.tileDimensions, sceneData);
+        }
     }
 
     update(time, delta) {
@@ -167,8 +172,102 @@ class GameScene extends Phaser.Scene {
         this.updateEnemies(sceneData, time, deltaTime);
         
         this.removeEnemies(sceneData);
+
+        this.createTiles(sceneData);
+
+        this.moveTiles(sceneData, deltaTime);
+
+        this.removeTiles(sceneData);
     }
 
+    createTiles(sceneData){
+        if (sceneData.sprite.tiles.length == 0){
+            this.createRow(-this.tileDimensions, sceneData);
+            return;
+        }
+
+        let highestRowY = sceneData.sprite.tiles[sceneData.sprite.tiles.length - 1][0].y;
+        if (highestRowY > 0){
+            this.createRow(highestRowY - this.tileDimensions, sceneData);
+        } 
+    }
+
+    createRow(y, sceneData) {
+        let crosswalk = "";
+        if (Math.random() < sceneData.crosswalkChance){
+            crosswalk = "Crosswalk";
+            sceneData.crosswalkChance  = 0;
+        }
+
+        let row = [];
+        for (let i = 0; i < game.config.width/this.tileDimensions; i++){
+            let tileType = "";
+            let tileDecorator = "";
+            let rotation = 0;
+            if (i == this.roadLeftOffset){
+                tileType = "road" + crosswalk + "Left";
+            }
+            else if (i == this.roadRightOffset){
+                tileType = "road" + crosswalk + "Right";
+            }
+            else if (i > this.roadLeftOffset && i < this.roadRightOffset){
+                if (crosswalk == "" && Math.random() < 0.1){
+                    tileType = "roadCrackedMiddle" + (Math.floor(Math.random() * 3) + 1);
+                    rotation = this.getRandomRotation();
+                }
+                else{
+                    tileType = "road" + crosswalk + "Middle";
+                }
+            }
+            else{
+                if (Math.random() < 0.8){
+                    tileType = "grass1";
+                }
+                else if (Math.random() < 0.9){
+                    tileType = "grass2";
+                    rotation = this.getRandomRotation();
+                }
+                else{
+                    tileType = "grass3";
+                    rotation = this.getRandomRotation();
+                }
+
+                if (Math.random() < 0.05){
+                    tileDecorator = "grassDecorator" + (Math.floor(Math.random() * 3) + 1);
+                }
+            }
+
+            let temp = this.add.sprite(i * this.tileDimensions, y, tileType);
+            temp.x += 0.5 * this.tileDimensions;
+            temp.setDepth(-2);
+            temp.setScale(this.tileDimensions / temp.width); 
+            temp.angle = rotation;
+            row.push(temp);
+
+            if (tileDecorator != ""){
+                let tempDeco = this.add.sprite(i * this.tileDimensions, y, tileDecorator);
+                tempDeco.x += 0.5 * this.tileDimensions;
+                tempDeco.setDepth(1);
+                if (tileDecorator == "grassDecorator3"){
+                    tempDeco.setScale(2 * this.tileDimensions / tempDeco.width); 
+                }
+                else{
+                    tempDeco.setScale(this.tileDimensions / tempDeco.width); 
+                }
+                row.push(tempDeco);
+            }
+        }
+        sceneData.sprite.tiles.push(row);
+
+        sceneData.rowNumber += 1;
+        sceneData.crosswalkChance += this.crosswalkChanceAdded;
+    }
+
+    getRandomRotation(){
+        let randomRotation = Math.floor(Math.random() * 4); //0 - 3
+        return randomRotation * 90;
+    }
+    
     // A center-radius AABB collision check
     collides(a, b) {
         if (Math.abs(a.x - b.x) > (a.displayWidth/2 + b.displayWidth/2) * this.shrinkCollisionsFactor) return false;
@@ -257,14 +356,21 @@ class GameScene extends Phaser.Scene {
         sceneData.sprite.enemies = sceneData.sprite.enemies.filter((enemy) => enemy.y < game.config.height + (enemy.displayHeight/2) && enemy.alpha > 0);
     }
 
+    removeTiles(sceneData) {
+        if (sceneData.sprite.tiles.length == 0){
+            return;
+        }
+
+        if (sceneData.sprite.tiles[0][0].y > game.config.height + (sceneData.sprite.tiles[0][0].displayHeight/2)){
+            sceneData.sprite.tiles.shift();
+        }
+    }
+
     checkCollisions(sceneData, time) {
         for (let enemy of sceneData.sprite.enemies) {
             for (let bullet of sceneData.sprite.bullets) {
                 if (!enemy.dead && this.collides(enemy, bullet)) {    
                     enemy.damage(1, time);
-
-                    // start animation
-                    //this.puff = this.add.sprite(enemy.x, enemy.y, "whitePuff03").setScale(0.25).play("puff");
 
                     // Update score
                     this.sceneData.score += enemy.points;
@@ -275,13 +381,6 @@ class GameScene extends Phaser.Scene {
                     
                     // put y offscreen, will get removed next update
                     bullet.y = -100;
-
-                    // // Have new hippo appear after end of animation
-                    // this.puff.on(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
-                    //     sceneData.sprite.hippo.visible = true;
-                    //     sceneData.sprite.hippo.x = Math.random()*config.width;
-                    // }, this);
-
                 }
             }
         }
@@ -336,6 +435,18 @@ class GameScene extends Phaser.Scene {
         this.sceneData.sprite["heart" + (health + 1)].alpha = 0.1;
     } 
     
+    moveTiles(sceneData, deltaTime) {
+        for (let tileRow of sceneData.sprite.tiles) {
+            for (let tile of tileRow) {
+                let yPrev = tile.y;
+                tile.y += this.tileSpeed * deltaTime;
+
+                if (yPrev == tile.y){
+                    console.log("Tile not moving!");
+                }
+            }
+        }
+    }
 
 }
          
