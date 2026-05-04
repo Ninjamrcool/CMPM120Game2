@@ -7,7 +7,7 @@ class GameScene extends Phaser.Scene {
 
     initializeScene() {
         // sceneData stores all non constant data
-        this.sceneData = {sprite: {}, text: {}, playerSpeed: 0, playerLastFiredTime: 0, playerLastHurtTime: 0, playerHealth: 3, lastEnemySpawnTime: 0, score: 0, rowNumber: 0, crosswalkChance: 0.0};
+        this.sceneData = {sprite: {}, text: {}, playerSpeed: 0, playerLastFiredTime: 0, playerLastHurtTime: 0, playerHealth: 3, lastScoreIncrementTime: 0, lastEnemySpawnTime: 0, score: 0, rowNumber: 0, crosswalkChance: 0.0};
 
         this.sceneData.sprite.bullets = [];   
         this.sceneData.sprite.enemies = [];   
@@ -16,6 +16,7 @@ class GameScene extends Phaser.Scene {
 
         // ----- CONFIG -----
         this.maxBullets = 10;
+        this.bulletReloadTime = 0.15;
 
         // Physics
         this.playerAcceleration = 2000;
@@ -163,7 +164,10 @@ class GameScene extends Phaser.Scene {
 
         this.removeOffscreenBullets(sceneData);
 
-        this.checkCollisions(sceneData, time);
+        // True when you die
+        if (this.checkCollisions(sceneData, time) == true){
+            return;
+        }
 
         this.moveBullets(sceneData, deltaTime);
 
@@ -178,6 +182,8 @@ class GameScene extends Phaser.Scene {
         this.moveTiles(sceneData, deltaTime);
 
         this.removeTiles(sceneData);
+
+        this.updateScore(time);
     }
 
     createTiles(sceneData){
@@ -196,7 +202,7 @@ class GameScene extends Phaser.Scene {
         let crosswalk = "";
         if (Math.random() < sceneData.crosswalkChance){
             crosswalk = "Crosswalk";
-            sceneData.crosswalkChance  = 0;
+            sceneData.crosswalkChance = 0;
         }
 
         let row = [];
@@ -275,7 +281,12 @@ class GameScene extends Phaser.Scene {
         return true;
     }
 
-    updateScore() {
+    updateScore(time) {
+        if (time/1000 - this.sceneData.lastScoreIncrementTime > 1){
+            this.sceneData.score += 3;
+            this.sceneData.lastScoreIncrementTime = time/1000;
+        }
+
         let sceneData = this.sceneData;
         sceneData.text.score.setText("Score " + this.sceneData.score);
     } 
@@ -334,11 +345,16 @@ class GameScene extends Phaser.Scene {
     }
 
     fireBullets(sceneData, time) {
-        if (!Phaser.Input.Keyboard.JustDown(this.space)) {
+        let pointer = this.input.activePointer;
+        if (!this.space.isDown && !pointer.isDown){
             return;
         }
 
         if (sceneData.sprite.bullets.length >= this.maxBullets) {
+            return;
+        }
+
+        if (time/1000 - sceneData.playerLastFiredTime < this.bulletReloadTime){
             return;
         }
 
@@ -374,7 +390,6 @@ class GameScene extends Phaser.Scene {
 
                     // Update score
                     this.sceneData.score += enemy.points;
-                    this.updateScore();
 
                     // Sound
                     this.impactMetalSound.play();
@@ -393,9 +408,12 @@ class GameScene extends Phaser.Scene {
                 // Update score
                 this.sceneData.playerHealth -= 1;
                 this.sceneData.playerLastHurtTime = time/1000;
-                this.updateHealth();
+                if (this.updateHealth() == true){
+                    return true;
+                };
             }
         }
+        return false;
     }
 
     moveBullets(sceneData, deltaTime) {
@@ -427,9 +445,9 @@ class GameScene extends Phaser.Scene {
         let health = this.sceneData.playerHealth;
 
         if (health < 1 ){
-            this.scene.restart()
+            this.scene.restart();
             this.initializeScene();
-            return
+            return true;
         }
 
         this.sceneData.sprite["heart" + (health + 1)].alpha = 0.1;
