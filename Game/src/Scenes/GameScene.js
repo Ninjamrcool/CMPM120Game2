@@ -7,7 +7,7 @@ class GameScene extends Phaser.Scene {
 
     initializeScene() {
         // sceneData stores all non constant data
-        this.sceneData = {sprite: {}, text: {}, playerSpeed: 0, playerLastFiredTime: 0, playerLastHurtTime: 0, playerHealth: 3, lastScoreIncrementTime: 0, lastEnemySpawnTime: 0, score: 0, rowNumber: 0, crosswalkChance: 0.0};
+        this.sceneData = {sprite: {}, text: {}, playerSpeed: 0, playerLastFiredTime: 0, playerLastHurtTime: 0, playerHealth: 3, lastScoreIncrementTime: 0, score: 0, rowNumber: 0, crosswalkChance: 0.0, lastEnemySpawnTime: 0, wave: 0, enemiesSpawnedThisWave: 0, lastWaveEndTime: 0};
 
         this.sceneData.sprite.bullets = [];   
         this.sceneData.sprite.enemies = [];   
@@ -29,11 +29,16 @@ class GameScene extends Phaser.Scene {
         this.shrinkCollisionsFactor = 0.9;
 
         // Waves
-        this.enemySpawnInterval = 1;
+        this.waveTime = 15;
+        this.waveDowntime = 3;
+        this.enemyAmountIncreasePerWave = 2;
+        this.baseEnemyAmount = 5;
 
         // Visual
         this.playerShootDuration = 0.5;
         this.playerDamageDuration = 0.15;
+
+        this.waveTextFadeSpeed = 2;
 
         // Tiles
         this.tileSpeed = 50;
@@ -44,6 +49,9 @@ class GameScene extends Phaser.Scene {
         // Positioning
         this.scoreTextX = 10;    
         this.scoreTextY = 560;   
+
+        this.waveTextX = 400;
+        this.waveTextY = 20;
 
         this.heartX = 775;    
         this.heartY = 575;   
@@ -147,6 +155,12 @@ class GameScene extends Phaser.Scene {
         sceneData.text.score = this.add.bitmapText(this.scoreTextX, this.scoreTextY, "rocketSquare", "Score " + this.sceneData.score);
         sceneData.text.score.setDepth(3);
 
+        // Put wave text
+        sceneData.text.wave = this.add.bitmapText(this.waveTextX, this.waveTextY, "rocketSquare", "Wave " + this.sceneData.wave);
+        sceneData.text.wave.setDepth(3);
+        sceneData.text.wave.setOrigin(0.5);
+        sceneData.text.wave.alpha = 0.0;
+
         for (let i = 0; i < game.config.height/this.tileDimensions; i++){
             this.createRow(Math.floor(game.config.height/this.tileDimensions - i) * this.tileDimensions, sceneData);
         }
@@ -171,7 +185,7 @@ class GameScene extends Phaser.Scene {
 
         this.moveBullets(sceneData, deltaTime);
 
-        this.spawnEnemies(sceneData, time);
+        this.spawnWaves(sceneData, time, deltaTime);
 
         this.updateEnemies(sceneData, time, deltaTime);
         
@@ -365,11 +379,29 @@ class GameScene extends Phaser.Scene {
     }
 
     removeOffscreenBullets(sceneData) {
-        sceneData.sprite.bullets = sceneData.sprite.bullets.filter((bullet) => bullet.y > -(bullet.displayHeight/2));
+        let bulletsNew = [];
+        for (let bullet of sceneData.sprite.bullets) {
+            if (bullet.y < -(bullet.displayHeight/2)){
+                bullet.destroy();
+            }
+            else{
+                bulletsNew.push(bullet);
+            }
+        }
+        sceneData.sprite.bullets = bulletsNew;
     }
 
     removeEnemies(sceneData) {
-        sceneData.sprite.enemies = sceneData.sprite.enemies.filter((enemy) => enemy.y < game.config.height + (enemy.displayHeight/2) && enemy.alpha > 0);
+        let enemiesNew = [];
+        for (let enemy of sceneData.sprite.enemies) {
+            if (enemy.y > game.config.height + (enemy.displayHeight/2) || enemy.alpha <= 0){
+                enemy.destroy();
+            }
+            else{
+                enemiesNew.push(enemy);
+            }
+        }
+        sceneData.sprite.enemies = enemiesNew;
     }
 
     removeTiles(sceneData) {
@@ -377,7 +409,11 @@ class GameScene extends Phaser.Scene {
             return;
         }
 
-        if (sceneData.sprite.tiles[0][0].y > game.config.height + (sceneData.sprite.tiles[0][0].displayHeight/2)){
+        let row = sceneData.sprite.tiles[0];
+        if (row[0].y > game.config.height + this.tileDimensions + (row[0].displayHeight/2)){
+            for (let tile of row) {
+                tile.destroy();
+            }
             sceneData.sprite.tiles.shift();
         }
     }
@@ -422,8 +458,30 @@ class GameScene extends Phaser.Scene {
         }
     }
 
-    spawnEnemies(sceneData, time) {
-        if (time/1000 - sceneData.lastEnemySpawnTime > this.enemySpawnInterval) {
+    spawnWaves(sceneData, time, deltaTime) {
+        if (time/1000 - sceneData.lastWaveEndTime < this.waveDowntime){
+            if (sceneData.wave > 0){
+                sceneData.text.wave.alpha += this.waveTextFadeSpeed * deltaTime;
+            }
+            return;
+        }
+
+        let enemiesThisWave = (this.enemyAmountIncreasePerWave * (this.sceneData.wave - 1)) + this.baseEnemyAmount;
+
+        if (sceneData.wave == 0 || sceneData.enemiesSpawnedThisWave >= enemiesThisWave){
+            if (sceneData.sprite.enemies.length == 0){
+                sceneData.wave += 1;
+                sceneData.enemiesSpawnedThisWave = 0;
+                sceneData.lastWaveEndTime = time/1000;
+                sceneData.text.wave.setText("Wave " + this.sceneData.wave);
+            }
+            return;
+        }
+
+        sceneData.text.wave.alpha -= this.waveTextFadeSpeed * deltaTime;
+
+        let timeBetweenEnemies = this.waveTime / enemiesThisWave;
+        if (time/1000 - sceneData.lastEnemySpawnTime > timeBetweenEnemies) {
             let temp = new Enemy(this, game.config.width/2, this.enemySpawnY, "zombie", null, 100, 5, 3);
             temp.setScale(1.25);
             temp.angle = 90;
@@ -431,6 +489,7 @@ class GameScene extends Phaser.Scene {
             sceneData.sprite.enemies.push(temp);
 
             sceneData.lastEnemySpawnTime = time/1000;
+            sceneData.enemiesSpawnedThisWave += 1;
         }
     }
 
@@ -456,12 +515,7 @@ class GameScene extends Phaser.Scene {
     moveTiles(sceneData, deltaTime) {
         for (let tileRow of sceneData.sprite.tiles) {
             for (let tile of tileRow) {
-                let yPrev = tile.y;
                 tile.y += this.tileSpeed * deltaTime;
-
-                if (yPrev == tile.y){
-                    console.log("Tile not moving!");
-                }
             }
         }
     }
