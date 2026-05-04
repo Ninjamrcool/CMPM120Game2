@@ -81,8 +81,12 @@ class GameScene extends Phaser.Scene {
 
         this.load.image("bullet", "bullet.png");
 
-        this.load.image("zombieIdle", "enemies/idle.png");
-        this.load.image("zombieHurt", "enemies/hurt.png");
+        this.load.image("basicZombieIdle", "enemies/basicIdle.png");
+        this.load.image("basicZombieHurt", "enemies/basicHurt.png");
+
+        this.load.image("speedyZombieIdle", "enemies/speedyIdle.png");
+        this.load.image("speedyZombieHurt", "enemies/speedyHurt.png");
+
 
         this.load.image("heart", "UI/heart.png");
 
@@ -187,7 +191,7 @@ class GameScene extends Phaser.Scene {
 
         this.spawnWaves(sceneData, time, deltaTime);
 
-        this.updateEnemies(sceneData, time, deltaTime);
+        this.updateEnemies(sceneData, time, deltaTime, sceneData.sprite.player.x);
         
         this.removeEnemies(sceneData);
 
@@ -482,7 +486,15 @@ class GameScene extends Phaser.Scene {
 
         let timeBetweenEnemies = this.waveTime / enemiesThisWave;
         if (time/1000 - sceneData.lastEnemySpawnTime > timeBetweenEnemies) {
-            let temp = new Enemy(this, game.config.width/2, this.enemySpawnY, "zombie", null, 100, 5, 3);
+            let temp;
+            if (sceneData.wave < 5 || Math.random() < 0.5){
+                temp = new Enemy(this, game.config.width/2, this.enemySpawnY, "basicZombieIdle", null, 100, 5, 3, "basic");
+            }
+            else{
+                temp = new Enemy(this, game.config.width/2, this.enemySpawnY, "speedyZombieIdle", null, 125, 5, 2, "speedy");
+            }
+
+
             temp.setScale(1.25);
             temp.angle = 90;
             temp.x = (Math.random() * (this.roadBoundRight - this.roadBoundLeft)) + this.roadBoundLeft;
@@ -493,9 +505,9 @@ class GameScene extends Phaser.Scene {
         }
     }
 
-    updateEnemies(sceneData, time, delta){
+    updateEnemies(sceneData, time, delta, playerX){
         for (let enemy of sceneData.sprite.enemies) {
-            enemy.update(time, delta);
+            enemy.update(time, delta, playerX);
         }
     }
 
