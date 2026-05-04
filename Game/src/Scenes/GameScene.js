@@ -2,18 +2,36 @@ class GameScene extends Phaser.Scene {
     constructor() {
         super("GameScene");
 
-        // Initialize a class variable "sceneData" which is an object.
-        // The object has two properties, both of which are objects
-        //  - "sprite" holds created sprites
-        //  - "text"   holds created bitmap text objects
-        //  - "score"  holds current score
-        this.sceneData = {sprite: {}, text: {}, score: 0};
+        // sceneData stores all non constant data
+        //  - "sprite"      holds created sprites
+        //  - "text"        holds created bitmap text objects
+        //  - "playerSpeed" holds the player's current speed
+        //  - "score"       holds current score
+        this.sceneData = {sprite: {}, text: {}, playerSpeed: 0, score: 0};
 
         // Create a property inside "sprite" named "bullet".
         // The bullet property has a value which is an array.
         // This array will hold bindings (pointers) to bullet sprites
         this.sceneData.sprite.bullet = [];   
-        this.maxBullets = 10;           // Don't create more than this many bullets        
+
+
+        // ----- CONFIG -----
+        this.maxBullets = 10;
+
+        // Physics
+        this.playerAcceleration = 2000;
+        this.maxPlayerSpeed = 350;
+        this.playerDynamicFriction = 3;
+        this.playerStaticFriction = 40;
+
+        this.bulletSpeed = 300;  
+
+        // Positioning
+        this.scoreTextX = 10;    
+        this.scoreTextY = 560;   
+
+        this.playerYOffset = 80;    
+
     }
 
     preload() {
@@ -44,8 +62,8 @@ class GameScene extends Phaser.Scene {
     create() {
         let sceneData = this.sceneData;
 
-        sceneData.sprite.elephant = this.add.sprite(game.config.width/2, game.config.height - 40, "elephant");
-        sceneData.sprite.elephant.setScale(0.25);
+        sceneData.sprite.player = this.add.sprite(game.config.width/2, game.config.height - this.playerYOffset, "elephant");
+        sceneData.sprite.player.setScale(0.25);
 
         sceneData.sprite.hippo = this.add.sprite(game.config.width/2, 80, "hippo");
         sceneData.sprite.hippo.setScale(0.25);
@@ -81,15 +99,11 @@ class GameScene extends Phaser.Scene {
         this.right = this.input.keyboard.addKey("D");
         this.space = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
 
-        // Set movement speeds (in pixels/tick)
-        this.playerSpeed = 300;
-        this.bulletSpeed = 300;
-
         // update HTML description
         document.getElementById('description').innerHTML = '<h2>Array Boom.js</h2><br>A: left // D: right // Space: fire/emit';
 
         // Put score on screen
-        sceneData.text.score = this.add.bitmapText(580, 0, "rocketSquare", "Score " + this.sceneData.score);
+        sceneData.text.score = this.add.bitmapText(this.scoreTextX, this.scoreTextY, "rocketSquare", "Score " + this.sceneData.score);
 
         // Put title on screen
         this.add.text(10, 5, "Hippo Hug!", {
@@ -105,7 +119,7 @@ class GameScene extends Phaser.Scene {
         let sceneData = this.sceneData;
         let deltaTime = delta / 1000;
 
-        this.movePlayer(sceneData, deltaTime);
+        this.updatePlayer(sceneData, deltaTime);
 
         this.fireBullets(sceneData);
 
@@ -128,22 +142,60 @@ class GameScene extends Phaser.Scene {
         sceneData.text.score.setText("Score " + this.sceneData.score);
     }
 
-    movePlayer(sceneData, deltaTime) {
-        // Moving left
-        if (this.left.isDown) {
-            // Check to make sure the sprite can actually move left
-            if (sceneData.sprite.elephant.x > (sceneData.sprite.elephant.displayWidth/2)) {
-                sceneData.sprite.elephant.x -= this.playerSpeed * deltaTime;
-            }
+    updatePlayer(sceneData, deltaTime) {
+        //A and D change speed
+        if (this.left.isDown){
+            this.sceneData.playerSpeed -= this.playerAcceleration * deltaTime;
+        }
+        if (this.right.isDown){
+            this.sceneData.playerSpeed += this.playerAcceleration * deltaTime;
         }
 
-        // Moving right
-        if (this.right.isDown) {
-            // Check to make sure the sprite can actually move right
-            if (sceneData.sprite.elephant.x < (game.config.width - (sceneData.sprite.elephant.displayWidth/2))) {
-                sceneData.sprite.elephant.x += this.playerSpeed * deltaTime;
-            }
+        //Dynamic Friction
+        this.sceneData.playerSpeed = this.sceneData.playerSpeed - (this.sceneData.playerSpeed * this.playerDynamicFriction * deltaTime)
+        
+        //Static Friction
+        if (this.sceneData.playerSpeed > 0){
+            this.sceneData.playerSpeed -= this.playerStaticFriction * deltaTime;
+            this.sceneData.playerSpeed = Math.max(0, this.sceneData.playerSpeed);
         }
+        else{
+            this.sceneData.playerSpeed += this.playerStaticFriction * deltaTime;
+            this.sceneData.playerSpeed = Math.min(0, this.sceneData.playerSpeed);
+        }
+
+        //Clamp speed
+        this.sceneData.playerSpeed = Math.min(Math.max(this.sceneData.playerSpeed, -1 * this.maxPlayerSpeed), this.maxPlayerSpeed);
+
+        sceneData.sprite.player.x += this.sceneData.playerSpeed * deltaTime;
+
+        //Clamp x position
+        if (sceneData.sprite.player.x < 0 || sceneData.sprite.player.x > 800) {
+            this.sceneData.playerSpeed = 0;
+        }
+        sceneData.sprite.player.x = Math.min(Math.max(sceneData.sprite.player.x, 0), 800);
+
+        //Flip sprite
+        if (this.sceneData.playerSpeed < 0){
+            sceneData.sprite.player.flipX = true;
+        }
+        else{
+            sceneData.sprite.player.flipX = false;
+        }
+
+        console.log(this.sceneData.playerSpeed);
+
+        //Change sprite
+        /*
+        if (Math.abs(this.sceneData.playerSpeed) > this.walkAnimationThreshhold){
+            sceneData.sprite.playerIdle.visible = false;
+            sceneData.sprite.playerWalk.visible = true;
+        }
+        else{
+            sceneData.sprite.playerIdle.visible = true;
+            sceneData.sprite.playerWalk.visible = false;
+        }*/
+
     }
 
     fireBullets(sceneData) {
@@ -152,7 +204,7 @@ class GameScene extends Phaser.Scene {
             // Are we under our bullet quota?
             if (sceneData.sprite.bullet.length < this.maxBullets) {
                 sceneData.sprite.bullet.push(this.add.sprite(
-                    sceneData.sprite.elephant.x, sceneData.sprite.elephant.y-(sceneData.sprite.elephant.displayHeight/2), "heart")
+                    sceneData.sprite.player.x, sceneData.sprite.player.y-(sceneData.sprite.player.displayHeight/2), "heart")
                 );
             }
         }
