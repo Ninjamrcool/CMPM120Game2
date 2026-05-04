@@ -87,6 +87,7 @@ class GameScene extends Phaser.Scene {
         this.load.image("speedyZombieIdle", "enemies/speedyIdle.png");
         this.load.image("speedyZombieHurt", "enemies/speedyHurt.png");
 
+        this.load.image("blackSquare", "UI/blackSquare.png");
 
         this.load.image("heart", "UI/heart.png");
 
@@ -171,6 +172,17 @@ class GameScene extends Phaser.Scene {
     }
 
     update(time, delta) {
+        // Game Over
+        if (this.sceneData.playerHealth < 1){
+            let pointer = this.input.activePointer;
+            if (pointer.isDown){
+                this.scene.restart();
+                this.initializeScene();
+            }
+
+            return;
+        }
+
         let sceneData = this.sceneData;
         let deltaTime = delta / 1000;
 
@@ -515,13 +527,34 @@ class GameScene extends Phaser.Scene {
         let sceneData = this.sceneData;
         let health = this.sceneData.playerHealth;
 
-        if (health < 1 ){
-            this.scene.restart();
-            this.initializeScene();
-            return true;
-        }
+        sceneData.sprite["heart" + (health + 1)].alpha = 0.1;
 
-        this.sceneData.sprite["heart" + (health + 1)].alpha = 0.1;
+        if (health < 1 ){
+            sceneData.text.gameOver = this.add.bitmapText(game.config.width/2, game.config.height/2 - 40, "rocketSquare", "Game Over!");
+            sceneData.text.gameOver.setDepth(4);
+            sceneData.text.gameOver.setOrigin(0.5);
+            sceneData.text.gameOver.setScale(1.5);
+
+            // why do i put this much effort into an assignment lol
+            let waveText = " wave";
+            if (sceneData.wave > 1){
+                waveText += "s"
+            }
+            sceneData.text.gameOverWaves = this.add.bitmapText(game.config.width/2, game.config.height/2, "rocketSquare", "You lasted " + sceneData.wave + waveText);
+            sceneData.text.gameOverWaves.setDepth(4);
+            sceneData.text.gameOverWaves.setOrigin(0.5);
+
+            sceneData.text.gameOverRestart = this.add.bitmapText(game.config.width/2, game.config.height/2 + 40, "rocketSquare", "- click to restart -");
+            sceneData.text.gameOverRestart.setDepth(4);
+            sceneData.text.gameOverRestart.setOrigin(0.5);
+
+            sceneData.sprite.blackSquare = this.add.sprite(game.config.width/2, game.config.height/2, "blackSquare");
+            sceneData.sprite.blackSquare.setDepth(3);
+            sceneData.sprite.blackSquare.setScale(50);
+            sceneData.sprite.blackSquare.alpha = 0.5;
+
+            return true;
+        }        
     } 
     
     moveTiles(sceneData, deltaTime) {
