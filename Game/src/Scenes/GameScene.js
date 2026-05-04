@@ -3,11 +3,7 @@ class GameScene extends Phaser.Scene {
         super("GameScene");
 
         // sceneData stores all non constant data
-        //  - "sprite"      holds created sprites
-        //  - "text"        holds created bitmap text objects
-        //  - "playerSpeed" holds the player's current speed
-        //  - "score"       holds current score
-        this.sceneData = {sprite: {}, text: {}, playerSpeed: 0, score: 0};
+        this.sceneData = {sprite: {}, text: {}, playerSpeed: 0, playerLastFiredTime: 0, score: 0};
 
         // Create a property inside "sprite" named "bullet".
         // The bullet property has a value which is an array.
@@ -24,23 +20,31 @@ class GameScene extends Phaser.Scene {
         this.playerDynamicFriction = 3;
         this.playerStaticFriction = 40;
 
-        this.bulletSpeed = 300;  
+        this.bulletSpeed = 700;  
+
+        // Visual
+        this.playerShootAnimationTime = 0.5;
 
         // Positioning
         this.scoreTextX = 10;    
         this.scoreTextY = 560;   
 
-        this.playerYOffset = 80;    
+        this.playerYOffset = 80;
+
+        this.bulletXOffset = 15;    
 
     }
 
     preload() {
-        this.load.setPath("./assets/");
-        this.load.image("elephant", "elephant.png");
-        this.load.image("heart", "heart.png");
+        // ------------------- SPRITES -------------------
+        this.load.setPath("./assets/sprites");
+
+        this.load.image("playerShoot", "player/gun.png");
+        this.load.image("playerIdle", "player/idle.png");
+        this.load.image("bullet", "bullet.png");
         this.load.image("hippo", "hippo.png");
 
-        // For animation
+        // Animation
         this.load.image("whitePuff00", "whitePuff00.png");
         this.load.image("whitePuff01", "whitePuff01.png");
         this.load.image("whitePuff02", "whitePuff02.png");
@@ -53,8 +57,10 @@ class GameScene extends Phaser.Scene {
         // Tutorial: https://dev.to/omar4ur/how-to-create-bitmap-fonts-for-phaser-js-with-bmfont-2ndc
         this.load.bitmapFont("rocketSquare", "KennyRocketSquare_0.png", "KennyRocketSquare.fnt");
 
-        // Sound asset from the Kenny Music Jingles pack
-        // https://kenney.nl/assets/music-jingles
+
+        // -------------------- SOUNDS -------------------
+        this.load.setPath("./assets/sounds");
+
         this.load.audio("impactMetal", "impactMetal_light_000.ogg");
         this.load.audio("music", "djartmusic-the-return-of-the-8-bit-era-301292.mp3");
     }
@@ -62,8 +68,9 @@ class GameScene extends Phaser.Scene {
     create() {
         let sceneData = this.sceneData;
 
-        sceneData.sprite.player = this.add.sprite(game.config.width/2, game.config.height - this.playerYOffset, "elephant");
-        sceneData.sprite.player.setScale(0.25);
+        sceneData.sprite.player = this.add.sprite(game.config.width/2, game.config.height - this.playerYOffset, "player");
+        sceneData.sprite.player.setScale(1.25);
+        sceneData.sprite.player.angle = -90;
 
         sceneData.sprite.hippo = this.add.sprite(game.config.width/2, 80, "hippo");
         sceneData.sprite.hippo.setScale(0.25);
@@ -105,23 +112,25 @@ class GameScene extends Phaser.Scene {
         // Put score on screen
         sceneData.text.score = this.add.bitmapText(this.scoreTextX, this.scoreTextY, "rocketSquare", "Score " + this.sceneData.score);
 
-        // Put title on screen
-        this.add.text(10, 5, "Hippo Hug!", {
-            fontFamily: 'Times, serif',
-            fontSize: 24,
-            wordWrap: {
-                width: 60
-            }
-        });
+        // // Put title on screen
+        // this.add.text(10, 5, "Hippo Hug!", {
+        //     fontFamily: 'Times, serif',
+        //     fontSize: 24,
+        //     wordWrap: {
+        //         width: 60
+        //     }
+        // });
     }
 
     update(time, delta) {
         let sceneData = this.sceneData;
         let deltaTime = delta / 1000;
 
-        this.updatePlayer(sceneData, deltaTime);
+        this.updatePlayerPhysics(sceneData, deltaTime);
 
-        this.fireBullets(sceneData);
+        this.fireBullets(sceneData, time);
+
+        this.updatePlayerSprite(sceneData, time);
 
         this.removeOffscreenBullets(sceneData);
 
@@ -142,7 +151,7 @@ class GameScene extends Phaser.Scene {
         sceneData.text.score.setText("Score " + this.sceneData.score);
     }
 
-    updatePlayer(sceneData, deltaTime) {
+    updatePlayerPhysics(sceneData, deltaTime) {
         //A and D change speed
         if (this.left.isDown){
             this.sceneData.playerSpeed -= this.playerAcceleration * deltaTime;
@@ -175,16 +184,6 @@ class GameScene extends Phaser.Scene {
         }
         sceneData.sprite.player.x = Math.min(Math.max(sceneData.sprite.player.x, 0), 800);
 
-        //Flip sprite
-        if (this.sceneData.playerSpeed < 0){
-            sceneData.sprite.player.flipX = true;
-        }
-        else{
-            sceneData.sprite.player.flipX = false;
-        }
-
-        console.log(this.sceneData.playerSpeed);
-
         //Change sprite
         /*
         if (Math.abs(this.sceneData.playerSpeed) > this.walkAnimationThreshhold){
@@ -198,16 +197,28 @@ class GameScene extends Phaser.Scene {
 
     }
 
-    fireBullets(sceneData) {
-        // Check for bullet being fired
-        if (Phaser.Input.Keyboard.JustDown(this.space)) {
-            // Are we under our bullet quota?
-            if (sceneData.sprite.bullet.length < this.maxBullets) {
-                sceneData.sprite.bullet.push(this.add.sprite(
-                    sceneData.sprite.player.x, sceneData.sprite.player.y-(sceneData.sprite.player.displayHeight/2), "heart")
-                );
-            }
+    updatePlayerSprite(sceneData, time) {
+        if (time/1000 - sceneData.playerLastFiredTime < this.playerShootAnimationTime) {
+            sceneData.sprite.player.setTexture("playerShoot");
         }
+        else{
+            sceneData.sprite.player.setTexture("playerIdle");
+        }
+    }
+
+    fireBullets(sceneData, time) {
+        if (!Phaser.Input.Keyboard.JustDown(this.space)) {
+            return;
+        }
+
+        if (sceneData.sprite.bullet.length >= this.maxBullets) {
+            return;
+        }
+
+        sceneData.sprite.bullet.push(this.add.sprite(
+            sceneData.sprite.player.x + this.bulletXOffset, sceneData.sprite.player.y-(sceneData.sprite.player.displayHeight/2), "bullet")
+        );
+        sceneData.playerLastFiredTime = time/1000;
     }
 
     removeOffscreenBullets(sceneData) {
