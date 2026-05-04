@@ -3,12 +3,10 @@ class GameScene extends Phaser.Scene {
         super("GameScene");
 
         // sceneData stores all non constant data
-        this.sceneData = {sprite: {}, text: {}, playerSpeed: 0, playerLastFiredTime: 0, score: 0};
+        this.sceneData = {sprite: {}, text: {}, playerSpeed: 0, playerLastFiredTime: 0, lastEnemySpawnTime: 0, score: 0};
 
-        // Create a property inside "sprite" named "bullet".
-        // The bullet property has a value which is an array.
-        // This array will hold bindings (pointers) to bullet sprites
-        this.sceneData.sprite.bullet = [];   
+        this.sceneData.sprite.bullets = [];   
+        this.sceneData.sprite.enemies = [];   
 
 
         // ----- CONFIG -----
@@ -20,7 +18,10 @@ class GameScene extends Phaser.Scene {
         this.playerDynamicFriction = 3;
         this.playerStaticFriction = 40;
 
-        this.bulletSpeed = 700;  
+        this.bulletSpeed = 700;
+
+        // Waves
+        this.enemySpawnInterval = 1;
 
         // Visual
         this.playerShootAnimationTime = 0.5;
@@ -31,7 +32,13 @@ class GameScene extends Phaser.Scene {
 
         this.playerYOffset = 80;
 
-        this.bulletXOffset = 15;    
+        this.bulletXOffset = 15;  
+        
+        this.enemySpawnY = -10;
+
+        this.roadBoundLeft = 200;    
+        this.roadBoundRight = 600;    
+
 
     }
 
@@ -42,7 +49,7 @@ class GameScene extends Phaser.Scene {
         this.load.image("playerShoot", "player/gun.png");
         this.load.image("playerIdle", "player/idle.png");
         this.load.image("bullet", "bullet.png");
-        this.load.image("hippo", "hippo.png");
+        this.load.image("zombie", "zombie.png");
 
         // Animation
         this.load.image("whitePuff00", "whitePuff00.png");
@@ -71,11 +78,6 @@ class GameScene extends Phaser.Scene {
         sceneData.sprite.player = this.add.sprite(game.config.width/2, game.config.height - this.playerYOffset, "player");
         sceneData.sprite.player.setScale(1.25);
         sceneData.sprite.player.angle = -90;
-
-        sceneData.sprite.hippo = this.add.sprite(game.config.width/2, 80, "hippo");
-        sceneData.sprite.hippo.setScale(0.25);
-        sceneData.sprite.hippo.scorePoints = 25;
-
 
         // Create white puff animation
         this.anims.create({
@@ -137,6 +139,12 @@ class GameScene extends Phaser.Scene {
         this.checkCollisions(sceneData);
 
         this.moveBullets(sceneData, deltaTime);
+
+        this.spawnEnemies(sceneData, time);
+
+        this.updateEnemies(sceneData, time, delta);
+        
+        this.removeOffscreenEnemies(sceneData);
     }
 
     // A center-radius AABB collision check
@@ -179,10 +187,10 @@ class GameScene extends Phaser.Scene {
         sceneData.sprite.player.x += this.sceneData.playerSpeed * deltaTime;
 
         //Clamp x position
-        if (sceneData.sprite.player.x < 0 || sceneData.sprite.player.x > 800) {
+        if (sceneData.sprite.player.x < this.roadBoundLeft || sceneData.sprite.player.x > this.roadBoundRight) {
             this.sceneData.playerSpeed = 0;
         }
-        sceneData.sprite.player.x = Math.min(Math.max(sceneData.sprite.player.x, 0), 800);
+        sceneData.sprite.player.x = Math.min(Math.max(sceneData.sprite.player.x, this.roadBoundLeft), this.roadBoundRight);
 
         //Change sprite
         /*
@@ -211,48 +219,76 @@ class GameScene extends Phaser.Scene {
             return;
         }
 
-        if (sceneData.sprite.bullet.length >= this.maxBullets) {
+        if (sceneData.sprite.bullets.length >= this.maxBullets) {
             return;
         }
 
-        sceneData.sprite.bullet.push(this.add.sprite(
+        sceneData.sprite.bullets.push(this.add.sprite(
             sceneData.sprite.player.x + this.bulletXOffset, sceneData.sprite.player.y-(sceneData.sprite.player.displayHeight/2), "bullet")
         );
         sceneData.playerLastFiredTime = time/1000;
     }
 
     removeOffscreenBullets(sceneData) {
-        sceneData.sprite.bullet = sceneData.sprite.bullet.filter((bullet) => bullet.y > -(bullet.displayHeight/2));
+        sceneData.sprite.bullets = sceneData.sprite.bullets.filter((bullet) => bullet.y > -(bullet.displayHeight/2));
+    }
+
+    removeOffscreenEnemies(sceneData) {
+        sceneData.sprite.enemies = sceneData.sprite.enemies.filter((enemy) => enemy.y < game.config.height + (enemy.displayHeight/2));
     }
 
     checkCollisions(sceneData) {
-        for (let bullet of sceneData.sprite.bullet) {
-            if (this.collides(sceneData.sprite.hippo, bullet)) {
-                // start animation
-                this.puff = this.add.sprite(sceneData.sprite.hippo.x, sceneData.sprite.hippo.y, "whitePuff03").setScale(0.25).play("puff");
-                // clear out bullet -- put y offscreen, will get reaped next update
-                bullet.y = -100;
-                sceneData.sprite.hippo.visible = false;
-                sceneData.sprite.hippo.x = -100;
-                // Update score
-                this.sceneData.score += sceneData.sprite.hippo.scorePoints;
-                this.updateScore();
-                this.impactMetalSound.play();
+        for (let enemy of sceneData.sprite.enemies) {
+            for (let bullet of sceneData.sprite.bullets) {
+                if (this.collides(enemy, bullet)) {    
+                    // start animation
+                    this.puff = this.add.sprite(enemy.x, enemy.y, "whitePuff03").setScale(0.25).play("puff");
 
-                // Have new hippo appear after end of animation
-                this.puff.on(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
-                    sceneData.sprite.hippo.visible = true;
-                    sceneData.sprite.hippo.x = Math.random()*config.width;
-                }, this);
+                    // Update score
+                    this.sceneData.score += enemy.points;
+                    this.updateScore();
 
+                    // Sound
+                    this.impactMetalSound.play();
+                    
+                    // put y offscreen, will get removed next update
+                    bullet.y = -100;
+                    enemy.y = 1000;
+
+                    // // Have new hippo appear after end of animation
+                    // this.puff.on(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+                    //     sceneData.sprite.hippo.visible = true;
+                    //     sceneData.sprite.hippo.x = Math.random()*config.width;
+                    // }, this);
+
+                }
             }
         }
     }
 
     moveBullets(sceneData, deltaTime) {
-        for (let bullet of sceneData.sprite.bullet) {
+        for (let bullet of sceneData.sprite.bullets) {
             bullet.y -= this.bulletSpeed * deltaTime;
         }
     }
+
+    spawnEnemies(sceneData, time) {
+        if (time/1000 - sceneData.lastEnemySpawnTime > this.enemySpawnInterval) {
+            let temp = new Enemy(this, game.config.width/2, this.enemySpawnY, "zombie", null, 0.1, 25)
+            temp.setScale(1.25);
+            temp.angle = 90;
+            temp.x = (Math.random() * (this.roadBoundRight - this.roadBoundLeft)) + this.roadBoundLeft;
+            sceneData.sprite.enemies.push(temp);
+
+            sceneData.lastEnemySpawnTime = time/1000;
+        }
+    }
+
+    updateEnemies(sceneData, time, delta){
+        for (let enemy of sceneData.sprite.enemies) {
+            enemy.update(time, delta);
+        }
+    }
+
 }
          
