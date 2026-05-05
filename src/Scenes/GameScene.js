@@ -77,26 +77,26 @@ class GameScene extends Phaser.Scene {
 
     preload() {
         // ------------------- SPRITES -------------------
-        this.load.setPath("./assets/sprites");
+        this.load.setPath("./assets/Sprites");
 
-        this.load.image("playerShoot", "player/gun.png");
-        this.load.image("playerShootHurt", "player/gunHurt.png");
-        this.load.image("playerIdle", "player/idle.png");
-        this.load.image("playerIdleHurt", "player/idleHurt.png");
+        this.load.image("playerShoot", "Player/gun.png");
+        this.load.image("playerShootHurt", "Player/gunHurt.png");
+        this.load.image("playerIdle", "Player/idle.png");
+        this.load.image("playerIdleHurt", "Player/idleHurt.png");
 
         this.load.image("bullet", "bullet.png");
-        this.load.image("tire1", "enemies/tire1.png");
-        this.load.image("tire2", "enemies/tire2.png");
-        this.load.image("tire3", "enemies/tire3.png");
+        this.load.image("tire1", "Enemies/tire1.png");
+        this.load.image("tire2", "Enemies/tire2.png");
+        this.load.image("tire3", "Enemies/tire3.png");
 
-        this.load.image("basicZombieIdle", "enemies/basicIdle.png");
-        this.load.image("basicZombieHurt", "enemies/basicHurt.png");
+        this.load.image("basicZombieIdle", "Enemies/basicIdle.png");
+        this.load.image("basicZombieHurt", "Enemies/basicHurt.png");
 
-        this.load.image("speedyZombieIdle", "enemies/speedyIdle.png");
-        this.load.image("speedyZombieHurt", "enemies/speedyHurt.png");
+        this.load.image("speedyZombieIdle", "Enemies/speedyIdle.png");
+        this.load.image("speedyZombieHurt", "Enemies/speedyHurt.png");
 
-        this.load.image("tankZombieIdle", "enemies/tankIdle.png");
-        this.load.image("tankZombieHurt", "enemies/tankHurt.png");
+        this.load.image("tankZombieIdle", "Enemies/tankIdle.png");
+        this.load.image("tankZombieHurt", "Enemies/tankHurt.png");
 
         this.load.image("blackSquare", "UI/blackSquare.png");
 
@@ -131,7 +131,7 @@ class GameScene extends Phaser.Scene {
 
 
         // -------------------- SOUNDS -------------------
-        this.load.setPath("./assets/sounds");
+        this.load.setPath("./assets/Sounds");
 
         this.load.audio("zombieDamage", "zombieDamage.ogg");
         this.load.audio("playerDamage", "playerDamage.mp3");
@@ -591,7 +591,7 @@ class GameScene extends Phaser.Scene {
                 temp = new Enemy(this, game.config.width/2, this.enemySpawnY, "tankZombieIdle", null, 75, 4, 6, "tank");
             }
 
-            temp = new Enemy(this, game.config.width/2, this.enemySpawnY, "tankZombieIdle", null, 75, 4, 6, "tank");
+            //temp = new Enemy(this, game.config.width/2, this.enemySpawnY, "tankZombieIdle", null, 75, 4, 6, "tank");
 
 
             temp.setScale(1.25);
