@@ -131,8 +131,11 @@ class GameScene extends Phaser.Scene {
         // -------------------- SOUNDS -------------------
         this.load.setPath("./assets/sounds");
 
-        this.load.audio("impactMetal", "impactMetal_light_000.ogg");
-        this.load.audio("music", "djartmusic-the-return-of-the-8-bit-era-301292.mp3");
+        this.load.audio("zombieDamage", "zombieDamage.ogg");
+        this.load.audio("playerDamage", "playerDamage.mp3");
+        this.load.audio("playerShoot", "playerShoot.mp3");
+        this.load.audio("music", "music.mp3");
+        this.load.audio("gameOver", "gameOver.mp3");
     }
 
     create() {
@@ -148,7 +151,17 @@ class GameScene extends Phaser.Scene {
             sceneData.sprite["heart" + (i + 1)].setDepth(3);
         }
 
-        this.impactMetalSound = this.sound.add("impactMetal", {
+        this.zombieDamageSound = this.sound.add("zombieDamage", {
+            volume: 0.5
+        });
+        this.playerDamageSound = this.sound.add("playerDamage", {
+            volume: 0.5
+        });
+        this.playerShootSound = this.sound.add("playerShoot", {
+            volume: 0.25,
+            rate: 2.0
+        });
+        this.gameOverSound = this.sound.add("gameOver", {
             volume: 0.5
         });
 
@@ -402,6 +415,7 @@ class GameScene extends Phaser.Scene {
         sceneData.sprite.bullets.push(this.add.sprite(
             sceneData.sprite.player.x + this.bulletXOffset, sceneData.sprite.player.y-(sceneData.sprite.player.displayHeight/2), "bullet")
         );
+        this.playerShootSound.play();
         sceneData.playerLastFiredTime = time/1000;
     }
 
@@ -466,7 +480,7 @@ class GameScene extends Phaser.Scene {
                     this.sceneData.score += enemy.points;
 
                     // Sound
-                    this.impactMetalSound.play();
+                    this.zombieDamageSound.play();
                     
                     // put y offscreen, will get removed next update
                     bullet.y = -100;
@@ -492,6 +506,7 @@ class GameScene extends Phaser.Scene {
 
                 // Update health
                 this.sceneData.playerHealth -= 1;
+                this.playerDamageSound.play();
                 this.sceneData.playerLastHurtTime = time/1000;
                 if (this.updateHealth() == true){
                     return true;
@@ -506,6 +521,7 @@ class GameScene extends Phaser.Scene {
 
                 // Update health
                 this.sceneData.playerHealth -= 1;
+                this.playerDamageSound.play();
                 this.sceneData.playerLastHurtTime = time/1000;
                 if (this.updateHealth() == true){
                     return true;
@@ -616,6 +632,9 @@ class GameScene extends Phaser.Scene {
             sceneData.sprite.blackSquare.setDepth(3);
             sceneData.sprite.blackSquare.setScale(50);
             sceneData.sprite.blackSquare.alpha = 0.5;
+
+            this.music.stop();
+            this.gameOverSound.play();
 
             return true;
         }        
