@@ -178,7 +178,7 @@ class GameScene extends Phaser.Scene {
         this.space = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
 
         // update HTML description
-        document.getElementById('description').innerHTML = '<h2>Gallery Shooter</h2><br>A: left // D: right // Space: fire/emit';
+        document.getElementById('description').innerHTML = '<h2>Gallery Shooter</h2><br>A: left // D: right // Space/Click: fire';
 
         // Put score on screen
         sceneData.text.score = this.add.bitmapText(this.scoreTextX, this.scoreTextY, "rocketSquare", "Score " + this.sceneData.score);
