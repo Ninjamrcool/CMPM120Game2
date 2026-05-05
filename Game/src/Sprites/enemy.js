@@ -53,10 +53,14 @@ class Enemy extends Phaser.GameObjects.Sprite {
 		}
 
 		if (this.typeString == "tank" && time/1000 - this.lastFireTime > this.tankEnemyFireCooldown){
-			let temp = scene.add.sprite(this.x, this.y-(this.displayHeight/2), "tire");
+			let temp = scene.add.sprite(this.x, this.y-(this.displayHeight/2), "tire1");
 			temp.setScale(2);
 			temp.setDepth(-1);
+			temp.angle = -90;
+			temp.y += temp.displayHeight;
 			scene.sceneData.sprite.tankBullets.push(temp);
+			temp.play("tire");
+
 			this.lastFireTime = time/1000;
 		}
 	}

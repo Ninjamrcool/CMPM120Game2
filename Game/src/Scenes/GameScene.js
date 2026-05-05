@@ -85,7 +85,9 @@ class GameScene extends Phaser.Scene {
         this.load.image("playerIdleHurt", "player/idleHurt.png");
 
         this.load.image("bullet", "bullet.png");
-        this.load.image("tire", "enemies/tire.png");
+        this.load.image("tire1", "enemies/tire1.png");
+        this.load.image("tire2", "enemies/tire2.png");
+        this.load.image("tire3", "enemies/tire3.png");
 
         this.load.image("basicZombieIdle", "enemies/basicIdle.png");
         this.load.image("basicZombieHurt", "enemies/basicHurt.png");
@@ -198,6 +200,18 @@ class GameScene extends Phaser.Scene {
                 this.scene.restart();
                 this.initializeScene();
             }
+        });
+
+        this.anims.create({
+            key: "tire",
+            frames: [
+                { key: "tire3" },
+                { key: "tire2" },
+                { key: "tire1" },
+            ],
+            frameRate: 20,
+            repeat: -1,
+            hideOnComplete: false
         });
     }
 
@@ -577,7 +591,7 @@ class GameScene extends Phaser.Scene {
                 temp = new Enemy(this, game.config.width/2, this.enemySpawnY, "tankZombieIdle", null, 75, 4, 6, "tank");
             }
 
-            //temp = new Enemy(this, game.config.width/2, this.enemySpawnY, "tankZombieIdle", null, 75, 4, 6, "tank");
+            temp = new Enemy(this, game.config.width/2, this.enemySpawnY, "tankZombieIdle", null, 75, 4, 6, "tank");
 
 
             temp.setScale(1.25);
