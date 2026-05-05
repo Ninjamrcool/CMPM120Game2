@@ -12,9 +12,10 @@ class GameScene extends Phaser.Scene {
         // sceneData stores all non constant data
         this.sceneData = {sprite: {}, text: {}, playerSpeed: 0, playerLastFiredTime: 0, playerLastHurtTime: 0, playerHealth: 3, lastScoreIncrementTime: 0, score: 0, rowNumber: 0, crosswalkChance: 0.0, lastEnemySpawnTime: 0, wave: 0, enemiesSpawnedThisWave: 0, lastWaveEndTime: 0};
 
-        this.sceneData.sprite.bullets = [];   
-        this.sceneData.sprite.enemies = [];   
-        this.sceneData.sprite.tiles = []; //rows   
+        this.sceneData.sprite.bullets = [];
+        this.sceneData.sprite.tankBullets = [];  
+        this.sceneData.sprite.enemies = [];  
+        this.sceneData.sprite.tiles = []; //rows
 
 
         // ----- CONFIG -----
@@ -28,12 +29,13 @@ class GameScene extends Phaser.Scene {
         this.playerStaticFriction = 40;
 
         this.bulletSpeed = 700;
+        this.tankBulletSpeed = 175;
 
         this.shrinkCollisionsFactor = 0.9;
 
         // Waves
-        this.waveTime = 15;
-        this.waveDowntime = 3;
+        this.waveTime = 12;
+        this.waveDowntime = 1.5;
         this.enemyAmountIncreasePerWave = 2;
         this.baseEnemyAmount = 5;
 
@@ -83,12 +85,16 @@ class GameScene extends Phaser.Scene {
         this.load.image("playerIdleHurt", "player/idleHurt.png");
 
         this.load.image("bullet", "bullet.png");
+        this.load.image("tire", "enemies/tire.png");
 
         this.load.image("basicZombieIdle", "enemies/basicIdle.png");
         this.load.image("basicZombieHurt", "enemies/basicHurt.png");
 
         this.load.image("speedyZombieIdle", "enemies/speedyIdle.png");
         this.load.image("speedyZombieHurt", "enemies/speedyHurt.png");
+
+        this.load.image("tankZombieIdle", "enemies/tankIdle.png");
+        this.load.image("tankZombieHurt", "enemies/tankHurt.png");
 
         this.load.image("blackSquare", "UI/blackSquare.png");
 
@@ -172,17 +178,19 @@ class GameScene extends Phaser.Scene {
         for (let i = 0; i < game.config.height/this.tileDimensions; i++){
             this.createRow(Math.floor(game.config.height/this.tileDimensions - i) * this.tileDimensions, sceneData);
         }
+
+        // Game Over
+        this.input.on('pointerdown', (pointer) => {
+            if (this.sceneData.playerHealth < 1){
+                this.scene.restart();
+                this.initializeScene();
+            }
+        });
     }
 
     update(time, delta) {
         // Game Over
         if (this.sceneData.playerHealth < 1){
-            let pointer = this.input.activePointer;
-            if (pointer.isDown){
-                this.scene.restart();
-                this.initializeScene();
-            }
-
             return;
         }
 
@@ -198,7 +206,7 @@ class GameScene extends Phaser.Scene {
         this.removeOffscreenBullets(sceneData);
 
         // True when you die
-        if (this.checkCollisions(sceneData, time) == true){
+        if (this.checkCollisions(sceneData, time, deltaTime) == true){
             return;
         }
 
@@ -408,6 +416,17 @@ class GameScene extends Phaser.Scene {
             }
         }
         sceneData.sprite.bullets = bulletsNew;
+
+        bulletsNew = [];
+        for (let bullet of sceneData.sprite.tankBullets) {
+            if (bullet.y > game.config.height + (bullet.displayHeight/2)){
+                bullet.destroy();
+            }
+            else{
+                bulletsNew.push(bullet);
+            }
+        }
+        sceneData.sprite.tankBullets = bulletsNew;
     }
 
     removeEnemies(sceneData) {
@@ -437,7 +456,7 @@ class GameScene extends Phaser.Scene {
         }
     }
 
-    checkCollisions(sceneData, time) {
+    checkCollisions(sceneData, time, deltaTime) {
         for (let enemy of sceneData.sprite.enemies) {
             for (let bullet of sceneData.sprite.bullets) {
                 if (!enemy.dead && this.collides(enemy, bullet)) {    
@@ -453,6 +472,17 @@ class GameScene extends Phaser.Scene {
                     bullet.y = -100;
                 }
             }
+
+            for (let bullet of sceneData.sprite.tankBullets) {
+                if (!enemy.dead && this.collides(enemy, bullet)) {
+                    if (enemy.x < bullet.x){
+                        enemy.x -= enemy.speed * deltaTime;
+                    }
+                    else if (enemy.x > bullet.x){
+                        enemy.x += enemy.speed * deltaTime;
+                    }
+                }
+            }
         }
 
 
@@ -460,7 +490,7 @@ class GameScene extends Phaser.Scene {
             if (!enemy.dead && this.collides(enemy, sceneData.sprite.player)) {    
                 enemy.damage(9999, time);
 
-                // Update score
+                // Update health
                 this.sceneData.playerHealth -= 1;
                 this.sceneData.playerLastHurtTime = time/1000;
                 if (this.updateHealth() == true){
@@ -468,12 +498,31 @@ class GameScene extends Phaser.Scene {
                 };
             }
         }
+
+        for (let bullet of sceneData.sprite.tankBullets) {
+            if (this.collides(bullet, sceneData.sprite.player)) {    
+                // put y offscreen, will get removed next update
+                bullet.y = 100;
+
+                // Update health
+                this.sceneData.playerHealth -= 1;
+                this.sceneData.playerLastHurtTime = time/1000;
+                if (this.updateHealth() == true){
+                    return true;
+                };
+            }
+        }
+
         return false;
     }
 
     moveBullets(sceneData, deltaTime) {
         for (let bullet of sceneData.sprite.bullets) {
             bullet.y -= this.bulletSpeed * deltaTime;
+        }
+
+        for (let bullet of sceneData.sprite.tankBullets) {
+            bullet.y += this.tankBulletSpeed * deltaTime;
         }
     }
 
@@ -502,12 +551,17 @@ class GameScene extends Phaser.Scene {
         let timeBetweenEnemies = this.waveTime / enemiesThisWave;
         if (time/1000 - sceneData.lastEnemySpawnTime > timeBetweenEnemies) {
             let temp;
-            if (sceneData.wave < 5 || Math.random() < 0.5){
+            if (sceneData.wave < 5 || (sceneData.wave < 10 && Math.random() < 0.5) || (sceneData.wave > 9 && Math.random() < 0.4)){
                 temp = new Enemy(this, game.config.width/2, this.enemySpawnY, "basicZombieIdle", null, 100, 5, 3, "basic");
             }
-            else{
+            else if (sceneData.wave < 10 || (sceneData.wave > 9 && Math.random() < 0.8)){
                 temp = new Enemy(this, game.config.width/2, this.enemySpawnY, "speedyZombieIdle", null, 125, 5, 2, "speedy");
             }
+            else{
+                temp = new Enemy(this, game.config.width/2, this.enemySpawnY, "tankZombieIdle", null, 75, 4, 6, "tank");
+            }
+
+            //temp = new Enemy(this, game.config.width/2, this.enemySpawnY, "tankZombieIdle", null, 75, 4, 6, "tank");
 
 
             temp.setScale(1.25);
@@ -522,7 +576,7 @@ class GameScene extends Phaser.Scene {
 
     updateEnemies(sceneData, time, delta, playerX){
         for (let enemy of sceneData.sprite.enemies) {
-            enemy.update(time, delta, playerX);
+            enemy.update(time, delta, this, playerX);
         }
     }
 

@@ -5,23 +5,27 @@ class Enemy extends Phaser.GameObjects.Sprite {
 
 		scene.add.existing(this);
 
-		// Constants
+		// Constants --------------
 		this.points = points;
 		this.speed = speed;
 		this.fadeSpeed = 2;
 		this.damageDuration = 0.15;
 		this.typeString = typeString;
 		this.minDistanceToMove = 25;
+		// Speedy
 		this.horizontalSpeed = 50;
+		// Tank
+		this.tankEnemyFireCooldown = 4.5;
 
-		// Dynamic
+		// Dynamic --------------
 		this.health = health;
 		this.dead = false;
+		this.lastFireTime = 0;
 
 		return this;
 	}
 
-	update(time, delta, playerX) {
+	update(time, delta, scene, playerX) {
 		if (time/1000 - this.timeDamaged < this.damageDuration){
             this.setTexture(this.typeString + "ZombieHurt");
 		}
@@ -46,6 +50,14 @@ class Enemy extends Phaser.GameObjects.Sprite {
 			else{
 				this.x += this.horizontalSpeed * delta;
 			}
+		}
+
+		if (this.typeString == "tank" && time/1000 - this.lastFireTime > this.tankEnemyFireCooldown){
+			let temp = scene.add.sprite(this.x, this.y-(this.displayHeight/2), "tire");
+			temp.setScale(2);
+			temp.setDepth(-1);
+			scene.sceneData.sprite.tankBullets.push(temp);
+			this.lastFireTime = time/1000;
 		}
 	}
 
